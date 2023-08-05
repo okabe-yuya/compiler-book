@@ -27,7 +27,7 @@ struct Node {
   Node *lhs; // 左辺(left-hand side)
   Node *rhs; // 右辺(right-hand side)
   int val;   // kindがND_NUMの場合のみ使う
-}
+};
 
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
   Node *node = calloc(1, sizeof(Node));
@@ -43,6 +43,14 @@ Node *new_node_num(int val) {
   node->val = val;
   return node;
 }
+
+Node *expr();
+Node *mul();
+Node *primary();
+
+bool consume(char op);
+void expect(char op);
+int expect_number();
 
 Node *expr() {
   Node *node = mul();
@@ -80,9 +88,19 @@ Node *primary() {
   return new_node_num(expect_number());
 }
 
+// +がやってくる
+// lhs -> [2] -> push 2
+// rhs -> [*]
+  // lhs -> [3] -> push 3
+  // rhs -> [4] -> push 4
+
+// pop rdi -> 3
+// pop rax -> 4
+// imul rax, rdi 3 * 4
 void gen(Node *node) {
   if (node->kind == ND_NUM) {
     printf("  push %d\n", node->val);
+    return;
   }
 
   gen(node->lhs);
@@ -189,7 +207,7 @@ Token *tokenize() {
       continue;
     }
 
-    if (*p == '+' || *p == '-') {
+    if (strchr("+-*/()", *p)) {
       cur = new_token(TK_RESERVED, cur, p++);
       continue;
     }
@@ -215,23 +233,15 @@ int main(int argc, char **argv) {
 
   user_input = argv[1];
   token = tokenize();
+  Node *node = expr();
 
   printf(".intel_syntax noprefix\n");
   printf(".global main\n");
   printf("main:\n");
 
-  printf("  mov rax, %d\n", expect_number());
+  gen(node);
 
-  while (!at_eof()) {
-    if (consume('+')) {
-      printf("  add rax, %d\n", expect_number());
-      continue;
-    }
-
-    expect('-');
-    printf("  sub rax, %d\n", expect_number());
-  }
-
+  printf("  pop rax\n");
   printf("  ret\n");
   return 0;
 }
